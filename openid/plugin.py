@@ -13,17 +13,23 @@ import os
 from pyramid.request import Request
 from pyop.exceptions import InvalidSubjectIdentifier
 from jwkest.jwk import RSAKey, rsa_load
-
 from pyop.authz_state import AuthorizationState
 from pyop.provider import Provider
 from pyop.subject_identifier import HashBasedSubjectIdentifierFactory
 from pyop.userinfo import Userinfo
 from oic.oic.message import EndSessionRequest
 from urllib.parse import urlencode
+from sqlalchemy import Table, Column, Unicode, UnicodeText, BigInteger
+from sqlalchemy.orm import mapper
+from .orm.clients import OpenIDClients
+from .wrappers import UserWrapper, ClientWrapper
 
 
 def init_oidc_provider(config):
-    config.registry.settings["openid.users"] = {"test_user": {"name": "Testing Name"}}
+    users = UserWrapper(config.registry.settings["sqlalchemy.url"])
+
+    config.registry.settings["openid.users"] = users
+    config.registry.settings["openid.clients"] = ClientWrapper
     server_name = config.registry.settings.get("openid.server.name")
     request = Request.blank(
         "/",
@@ -73,7 +79,7 @@ def init_oidc_provider(config):
                 config.registry.settings["openid.subject.id.hash.salt"]
             )
         ),
-        {},
+        config.registry.settings["openid.clients"],
         userinfo_db,
     )
     config.registry.settings["openid.provider"] = provider
@@ -97,6 +103,23 @@ class OpenID(plugins.SingletonPlugin):
     plugins.implements(plugins.ITranslation)
     plugins.implements(plugins.IEnvironment)
     plugins.implements(plugins.ILogOut)
+    plugins.implements(plugins.IDatabase)
+
+    def update_orm(self, metadata):
+        t = Table(
+            "openidclients",
+            metadata,
+            Column("client_id", Unicode(64), primary_key=True),
+            Column("client_name", Unicode(120)),
+            Column("application_type", Unicode(120)),
+            Column("redirect_uris", UnicodeText),
+            Column("response_types", UnicodeText),
+            Column("client_id_issued_at", BigInteger),
+            Column("client_secret", Unicode(64)),
+            Column("client_secret_expires_at", BigInteger),
+        )
+        metadata.create_all()
+        mapper(OpenIDClients, t)
 
     def before_log_out(self, request, user):
         return True
@@ -108,7 +131,7 @@ class OpenID(plugins.SingletonPlugin):
         log_out, url = do_logout(
             provider, EndSessionRequest().from_dict(end_session_request_dict)
         )
-        if log_out and url != "":
+        if url != "":
             return url, logout_headers
         return redirect_url, logout_headers
 
