@@ -1,10 +1,16 @@
 FormShare OpenID Plugin
 ==============
 
-This plug-in enable FormShare to become a [OpenID](https://en.wikipedia.org/wiki/OpenID) server where third-party applications could use it to authenticate users. The plug-in uses [pyOP](https://github.com/IdentityPython/pyop)
+This plug-in enable FormShare to become a [OpenID](https://en.wikipedia.org/wiki/OpenID) server where third-party applications could use it to authenticate users. The plug-in uses [pyOP](https://github.com/IdentityPython/pyop).
 
 Getting Started
 ---------------
+
+- Get the code
+
+```
+git clone https://github.com/qlands/formshare_openid_plugin.git
+```
 
 - Activate the FormShare environment.
 ```sh
@@ -13,16 +19,16 @@ activate ./path/to/FormShare/bin/activate
 
 - Change directory into your newly created plug-in.
 ```sh
-cd openid
+cd formshare_openid_plugin
 ```
 
 - Build the plug-in
 ```sh
-pip install requirements.txt
+pip install -r requirements.txt
 python setup.py develop
 ```
 
-- Add the plug-in to the FormShare list of plug-ins by editing the following line in development.ini or production.ini and add the plug-in configuration items
+- Add the plug-in to the FormShare list of plug-ins by editing the following line in development.ini or production.ini and add the plug-in configuration items.
 ```ini
 #formshare.plugins = examplePlugin
 formshare.plugins = openid
@@ -36,7 +42,7 @@ openid.registration.key = aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa (Get one here: ht
 
 ## Testing
 
-- If you are testing locally you need [ngrok](https://ngrok.com/) to expose the local server to on-line clients. For this add the following lines to development.ini or production.ini **under the section [server:main]** to tell gunicorn to start a HTTPS server
+- If you are testing locally you need [ngrok](https://ngrok.com/) to expose the local server to on-line clients. For this add the following lines to development.ini or production.ini **under the section [server:main]** to tell gunicorn to start a HTTPS server.
 
   ```ini
   certfile = /path/to/certificate/file/https.crt
@@ -71,9 +77,9 @@ openid.registration.key = aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa (Get one here: ht
   - Response type = code
   - Response mode = query
 
-  Note: Only openid and profile scopes are supported
+  **Note: Only openid and profile scopes are supported**
 
-  When you authorize you will be taken to the FormShare login page to login
+  When you authorize you will be taken to the FormShare login page to login.
 
   Once logged in, the client will receive an authorization code like:
 
