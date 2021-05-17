@@ -16,7 +16,6 @@ from ast import literal_eval
 from pyop.util import should_fragment_encode
 from oic.oic.message import TokenErrorResponse, UserInfoErrorResponse, EndSessionRequest
 from pyop.access_token import AccessToken, BearerTokenError
-from webob.headers import EnvironHeaders
 
 
 def get_policy(request, policy_name):
