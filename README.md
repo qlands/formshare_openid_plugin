@@ -1,7 +1,7 @@
 FormShare OpenID Plugin
 ==============
 
-This plug-in enable FormShare to become a OpenID server where third-party applications could use it to authenticate user accounts. The plug-in uses [pyOP](https://github.com/IdentityPython/pyop)
+This plug-in enable FormShare to become a [OpenID](https://en.wikipedia.org/wiki/OpenID) server where third-party applications could use it to authenticate users. The plug-in uses [pyOP](https://github.com/IdentityPython/pyop)
 
 Getting Started
 ---------------
