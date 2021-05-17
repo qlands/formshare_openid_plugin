@@ -17,9 +17,13 @@ class UserWrapper(object):
         user = engine.execute(
             "SELECT user_name FROM fsuser WHERE user_id = '{}'".format(key)
         ).fetchone()
-        res = {"name": user[0]}
-        engine.dispose()
-        return res
+        if user is not None:
+            res = {"name": user[0]}
+            engine.dispose()
+            return res
+        else:
+            engine.dispose()
+            raise KeyError(key)
 
     def __delitem__(self, key):
         pass

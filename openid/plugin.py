@@ -7,18 +7,14 @@ from .views import (
     OpenIDJWKSView,
     OpenIDTokenView,
     OpenIDUserInfoView,
+    OpenIDLogoutView,
 )
-import sys
-import os
 from pyramid.request import Request
-from pyop.exceptions import InvalidSubjectIdentifier
 from jwkest.jwk import RSAKey, rsa_load
 from pyop.authz_state import AuthorizationState
 from pyop.provider import Provider
 from pyop.subject_identifier import HashBasedSubjectIdentifierFactory
 from pyop.userinfo import Userinfo
-from oic.oic.message import EndSessionRequest
-from urllib.parse import urlencode
 from sqlalchemy import Table, Column, Unicode, UnicodeText, BigInteger
 from sqlalchemy.orm import mapper
 from .orm.clients import OpenIDClients
@@ -29,7 +25,9 @@ def init_oidc_provider(config):
     users = UserWrapper(config.registry.settings["sqlalchemy.url"])
 
     config.registry.settings["openid.users"] = users
-    config.registry.settings["openid.clients"] = ClientWrapper
+    config.registry.settings["openid.clients"] = ClientWrapper(
+        config.registry.settings["sqlalchemy.url"]
+    )
     server_name = config.registry.settings.get("openid.server.name")
     request = Request.blank(
         "/",
@@ -44,7 +42,7 @@ def init_oidc_provider(config):
     token_endpoint = request.route_url("openid_token_endpoint")
     userinfo_endpoint = request.route_url("openid_userinfo_endpoint")
     registration_endpoint = request.route_url("openid_registration_endpoint")
-    end_session_endpoint = request.route_url("openid_end_session_endpoint")
+    end_session_endpoint = request.route_url("openid_logout_endpoint")
 
     configuration_information = {
         "issuer": issuer,
@@ -85,24 +83,9 @@ def init_oidc_provider(config):
     config.registry.settings["openid.provider"] = provider
 
 
-def do_logout(provider, end_session_request):
-    try:
-        provider.logout_user(end_session_request=end_session_request)
-    except InvalidSubjectIdentifier as e:
-        print("Unable to logout: {}".format(str(e)))
-        return False, ""
-    redirect_url = provider.do_post_logout_redirect(end_session_request)
-    if redirect_url:
-        return True, redirect_url
-    return True, ""
-
-
 class OpenID(plugins.SingletonPlugin):
     plugins.implements(plugins.IRoutes)
-    plugins.implements(plugins.IConfig)
-    plugins.implements(plugins.ITranslation)
     plugins.implements(plugins.IEnvironment)
-    plugins.implements(plugins.ILogOut)
     plugins.implements(plugins.IDatabase)
 
     def update_orm(self, metadata):
@@ -121,20 +104,6 @@ class OpenID(plugins.SingletonPlugin):
         metadata.create_all()
         mapper(OpenIDClients, t)
 
-    def before_log_out(self, request, user):
-        return True
-
-    def after_log_out(self, request, user, redirect_url, logout_headers):
-        end_session_request = EndSessionRequest().deserialize(urlencode(request.params))
-        end_session_request_dict = end_session_request.to_dict()
-        provider = request.registry.settings["openid.provider"]
-        log_out, url = do_logout(
-            provider, EndSessionRequest().from_dict(end_session_request_dict)
-        )
-        if url != "":
-            return url, logout_headers
-        return redirect_url, logout_headers
-
     def after_environment_load(self, config):
         init_oidc_provider(config)
 
@@ -147,13 +116,13 @@ class OpenID(plugins.SingletonPlugin):
         custom_map = [
             u.add_route(
                 "openid_registration_endpoint",
-                "/registration",
+                "/openid_registration",
                 OpenIDRegistrationView,
                 None,
             ),
             u.add_route(
                 "openid_authentication_endpoint",
-                "/authentication",
+                "/openid_authentication",
                 OpenIDAuthenticationView,
                 None,
             ),
@@ -165,33 +134,28 @@ class OpenID(plugins.SingletonPlugin):
             ),
             u.add_route(
                 "openid_jwks_uri",
-                "/jwks",
+                "/openid_jwks",
                 OpenIDJWKSView,
                 None,
             ),
             u.add_route(
                 "openid_token_endpoint",
-                "/token",
+                "/openid_token",
                 OpenIDTokenView,
                 None,
             ),
             u.add_route(
                 "openid_userinfo_endpoint",
-                "/userinfo",
+                "/openid_userinfo",
                 OpenIDUserInfoView,
+                None,
+            ),
+            u.add_route(
+                "openid_logout_endpoint",
+                "/openid_logout",
+                OpenIDLogoutView,
                 None,
             ),
         ]
 
         return custom_map
-
-    def update_config(self, config):
-        # We add here the templates of the plugin to the config
-        u.add_templates_directory(config, "templates")
-
-    def get_translation_directory(self):
-        module = sys.modules["openid"]
-        return os.path.join(os.path.dirname(module.__file__), "locale")
-
-    def get_translation_domain(self):
-        return "openid"

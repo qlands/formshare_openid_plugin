@@ -8,13 +8,15 @@ from pyop.exceptions import (
     InvalidClientAuthentication,
     OAuthError,
     InvalidClientRegistrationRequest,
+    InvalidSubjectIdentifier,
 )
 import json
 from urllib.parse import urlencode
 from ast import literal_eval
 from pyop.util import should_fragment_encode
-from oic.oic.message import TokenErrorResponse, UserInfoErrorResponse
+from oic.oic.message import TokenErrorResponse, UserInfoErrorResponse, EndSessionRequest
 from pyop.access_token import AccessToken, BearerTokenError
+from webob.headers import EnvironHeaders
 
 
 def get_policy(request, policy_name):
@@ -32,9 +34,13 @@ def create_json_response(data, status, headers=None):
         ("Content-Type", "application/json; charset=utf-8"),
     ] + headers
     response = Response(headerlist=response_headers, status=status)
-    json_object = json.dumps(data, indent=4, default=str)
+    json_object = json.dumps(data, default=str)
     response.text = json_object
     return response
+
+
+def to_json(data):
+    return json.dumps(data, default=str)
 
 
 class OpenIDRegistrationView(FormSharePublicView):
@@ -46,6 +52,8 @@ class OpenIDRegistrationView(FormSharePublicView):
             try:
                 provider = self.request.registry.settings["openid.provider"]
                 registration_data = variable_decode(self.request.POST)
+                if not registration_data:
+                    registration_data = self.request.json_body
                 if (
                     registration_data.get("registration_key")
                     != self.request.registry.settings["openid.registration.key"]
@@ -54,7 +62,7 @@ class OpenIDRegistrationView(FormSharePublicView):
                 else:
                     registration_data.pop("registration_key", None)
                 provider_response = provider.handle_client_registration_request(
-                    registration_data
+                    to_json(registration_data)
                 )
                 return create_json_response(provider_response.to_dict(), 201)
             except InvalidClientRegistrationRequest as e:
@@ -71,16 +79,18 @@ class OpenIDAuthenticationView(FormSharePublicView):
             login_data = policy.authenticated_userid(self.request)
             if login_data is None:
                 return HTTPSeeOther(
-                    location=self.request.route_url("login"),
+                    location=self.request.route_url(
+                        "login", _query={"next": self.request.url, "openid": True}
+                    ),
                     headers=self.request.headers,
-                    _query={"next": self.request.url, "openid": True},
                 )
             login_data = literal_eval(login_data)
             if login_data["group"] != "mainApp":
                 return HTTPSeeOther(
-                    location=self.request.route_url("login"),
+                    location=self.request.route_url(
+                        "login", _query={"next": self.request.url, "openid": True}
+                    ),
                     headers=self.request.headers,
-                    _query={"next": self.request.url, "openid": True},
                 )
 
             provider = self.request.registry.settings["openid.provider"]
@@ -124,7 +134,12 @@ class OpenIDTokenView(FormSharePublicView):
         else:
             provider = self.request.registry.settings["openid.provider"]
             try:
-                registration_data = variable_decode(self.request.POST)
+                post_data = variable_decode(self.request.POST)
+                registration_data = []
+                for key, value in post_data.items():
+                    registration_data.append(key + "=" + value)
+                registration_data = "&".join(registration_data)
+
                 token_response = provider.handle_token_request(
                     registration_data, self.request.headers
                 )
@@ -152,6 +167,8 @@ class OpenIDUserInfoView(FormSharePublicView):
         try:
             if self.request.method == "POST":
                 registration_data = variable_decode(self.request.POST)
+                if not registration_data:
+                    registration_data = self.request.json_body
             else:
                 registration_data = self.request.params
             open_id_response = provider.handle_userinfo_request(
@@ -167,3 +184,31 @@ class OpenIDUserInfoView(FormSharePublicView):
                 401,
                 [("WWW-Authenticate", AccessToken.BEARER_TOKEN_TYPE)],
             )
+
+
+def do_logout(provider, end_session_request):
+    try:
+        provider.logout_user(end_session_request=end_session_request)
+    except InvalidSubjectIdentifier as e:
+        print("OpenID: Unable to logout: {}".format(str(e)))
+        return False, ""
+    redirect_url = provider.do_post_logout_redirect(end_session_request)
+    if redirect_url:
+        return redirect_url
+    return ""
+
+
+class OpenIDLogoutView(FormSharePublicView):
+    def process_view(self):
+        self.returnRawViewResult = True
+        end_session_request = EndSessionRequest().deserialize(
+            urlencode(self.request.params)
+        )
+        end_session_request_dict = end_session_request.to_dict()
+        provider = self.request.registry.settings["openid.provider"]
+        redirect_url = do_logout(
+            provider, EndSessionRequest().from_dict(end_session_request_dict)
+        )
+        if redirect_url != "":
+            return HTTPSeeOther(location=redirect_url)
+        return HTTPSeeOther(location=self.request.route_url("home"))
