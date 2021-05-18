@@ -58,7 +58,7 @@ openid.registration.key = aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa (Get one here: ht
 - Register a client. For example https://oidcdebugger.com/
 
   ```bash
-  curl --request POST --url 'https://your.FormShare_Server.com/openid_registration' --header 'content-type: application/json' --data '{"registration_key":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","client_name":"My Dynamic Application","redirect_uris": ["https://oidcdebugger.com/debug"]}
+  curl --request POST --url 'https://your.FormShare_Server.com/openid_registration' --header 'content-type: application/json' --data '{"registration_key":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","client_name":"My Dynamic Application","redirect_uris": ["https://oidcdebugger.com/debug"]}'
   ```
 
   This will return the following JSON:
