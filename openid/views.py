@@ -185,7 +185,6 @@ class OpenIDUserInfoView(FormSharePublicView):
                 data_dict["name"] = user_info["user_name"]
                 data_dict["email"] = user_info["user_email"]
                 data_dict["id"] = user_info["user_id"]
-                data_dict["username"] = user_info["user_id"]
                 data_dict["user_name"] = user_info["user_id"]
                 parts = data_dict["name"].split()
                 if len(parts) > 1:
