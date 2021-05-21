@@ -16,6 +16,7 @@ from ast import literal_eval
 from pyop.util import should_fragment_encode
 from oic.oic.message import TokenErrorResponse, UserInfoErrorResponse, EndSessionRequest
 from pyop.access_token import AccessToken, BearerTokenError
+from formshare.models import User, map_from_schema
 
 
 def get_policy(request, policy_name):
@@ -173,7 +174,27 @@ class OpenIDUserInfoView(FormSharePublicView):
             open_id_response = provider.handle_userinfo_request(
                 registration_data, self.request.headers
             )
-            return create_json_response(open_id_response.to_dict(), 200)
+            data_dict = open_id_response.to_dict()
+            user_info = (
+                self.request.dbsession.query(User)
+                .filter(User.user_id == data_dict["name"])
+                .first()
+            )
+            user_info = map_from_schema(user_info)
+            if user_info:
+                data_dict["name"] = user_info["user_name"]
+                data_dict["email"] = user_info["user_email"]
+                data_dict["id"] = user_info["user_id"]
+                data_dict["username"] = user_info["user_id"]
+                data_dict["user_name"] = user_info["user_id"]
+                parts = data_dict["name"].split()
+                if len(parts) > 1:
+                    data_dict["first_name"] = parts[0]
+                    data_dict["last_name"] = parts[1]
+                else:
+                    data_dict["first_name"] = data_dict["name"]
+                    data_dict["last_name"] = data_dict["name"]
+            return create_json_response(data_dict, 200)
         except (BearerTokenError, InvalidAccessToken) as e:
             error_resp = UserInfoErrorResponse(
                 error="invalid_token", error_description=str(e)

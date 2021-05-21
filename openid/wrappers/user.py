@@ -18,7 +18,7 @@ class UserWrapper(object):
             "SELECT user_name,user_email FROM fsuser WHERE user_id = '{}'".format(key)
         ).fetchone()
         if user is not None:
-            res = {"name": user[0], "email": user[1], "user_name": key}
+            res = {"name": key}
             engine.dispose()
             return res
         else:
@@ -41,10 +41,10 @@ class UserWrapper(object):
 
     def items(self):
         engine = create_engine(self._db_uri)
-        users = engine.execute("SELECT user_id,user_name,user_email FROM fsuser").fetchall()
+        users = engine.execute("SELECT user_id FROM fsuser").fetchall()
         users_dict = {}
         for a_user in users:
-            yield users_dict[a_user[0]], {"name": a_user[1], "email": a_user[2], "user_name": a_user[0]}
+            yield users_dict[a_user[0]], {"name": a_user[0]}
         engine.dispose()
 
     def pop(self, key, default=None):
